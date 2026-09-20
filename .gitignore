@@ -1,0 +1,25 @@
+venv/
+__pycache__/
+*.pyc
+.cache/
+*.cache
+.pytest_cache/
+.git/
+evidence/*
+challans/*
+data/*.db
+sample_media/temp_upload.jpg
+
+# Local backups
+*.bak
+*.backup
+detector.before_association_fix.py
+detector.py.broken_backup
+detector_backup_before_strict_association.py
+
+# Generated evaluation output
+evaluation_results/
+
+# Local evaluation dataset
+evaluation_dataset/
+my1
