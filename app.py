@@ -135,25 +135,39 @@ os.makedirs(SAMPLE_DIR, exist_ok=True)
 # ============================================================
 
 # IMPORTANT:
-# EasyOCR is NOT loaded here.
-# It is loaded only when the user actually runs a detection.
-# This prevents Streamlit Cloud from getting stuck at startup.
+# The heavy YOLO detector is NOT loaded during initial page load.
+# It is loaded only when the user clicks the detection button.
+#
+# This prevents Streamlit Cloud from getting stuck at:
+# "Running load_resources"
+#
+# EasyOCR is also lazy-loaded only when detection runs.
+
 
 @st.cache_resource
-def load_resources():
+def load_basic_resources():
     """
-    Load the core project resources.
+    Load lightweight resources required by the dashboard.
 
-    EasyOCR is intentionally excluded because its model download
-    can take time and should not block the initial Streamlit UI.
+    Heavy computer-vision models are intentionally excluded.
     """
     init_db()
 
-    detector = TrafficViolationDetector()
     nlp = TrafficNLP()
     pdf = ChallanPDFGenerator()
 
-    return detector, nlp, pdf
+    return nlp, pdf
+
+
+@st.cache_resource
+def load_detector():
+    """
+    Lazy-load the complete YOLO traffic detector.
+
+    This is intentionally called only when the user runs
+    the AI Detection Pipeline.
+    """
+    return TrafficViolationDetector()
 
 
 @st.cache_resource
@@ -164,12 +178,24 @@ def load_ocr():
     return LicensePlateRecognizer()
 
 
-# Load core resources
+# Load only lightweight resources at startup.
 try:
-    detector, nlp, pdf_gen = load_resources()
+
+    nlp, pdf_gen = load_basic_resources()
+
 except Exception as e:
-    st.error(f"Error loading core system components: {e}")
+
+    st.error(
+        f"Error loading core system components: {e}"
+    )
+
     st.stop()
+
+
+# Detector starts as unavailable.
+# It will be initialized only when detection is requested.
+
+detector = None
 
 
 # ============================================================
@@ -239,6 +265,7 @@ with st.sidebar.expander("📝 Register New Vehicle (Registry)"):
             st.rerun()
 
         else:
+
             st.sidebar.error(
                 "All registry fields are mandatory."
             )
@@ -270,7 +297,9 @@ reg_vehicles = len(get_all_vehicles())
 
 col_m1, col_m2, col_m3, col_m4 = st.columns(4)
 
+
 with col_m1:
+
     st.markdown(
         f"""
         <div class="metric-card">
@@ -281,7 +310,9 @@ with col_m1:
         unsafe_allow_html=True
     )
 
+
 with col_m2:
+
     st.markdown(
         f"""
         <div class="metric-card">
@@ -291,6 +322,7 @@ with col_m2:
         """,
         unsafe_allow_html=True
     )
+
 
 with col_m3:
 
@@ -306,21 +338,35 @@ with col_m3:
         unsafe_allow_html=True
     )
 
+
 with col_m4:
 
-    model_status = (
-        "Online (CPU)"
-        if detector.coco_model
-        else "Offline"
+    # Detector is intentionally not loaded during startup.
+    # The service status therefore reflects whether the detector
+    # has already been initialized in this session.
+
+    detector_status = (
+        "Ready"
+        if detector is not None
+        else "Standby"
+    )
+
+    detector_color = (
+        "#22C55E"
+        if detector is not None
+        else "#3B82F6"
     )
 
     st.markdown(
         f"""
         <div class="metric-card">
-            <div class="metric-value" style="color: #22C55E;">
-                {model_status}
+            <div class="metric-value"
+                 style="color: {detector_color};">
+                {detector_status}
             </div>
-            <div class="metric-label">YOLOv8 Service Status</div>
+            <div class="metric-label">
+                YOLOv8 Service Status
+            </div>
         </div>
         """,
         unsafe_allow_html=True
@@ -437,7 +483,28 @@ with tab_dash:
         if run_btn:
 
             # ------------------------------------------------
-            # STEP 1: LOAD OCR ONLY NOW
+            # STEP 1: LOAD YOLO DETECTOR ONLY NOW
+            # ------------------------------------------------
+
+            with st.spinner(
+                "Loading YOLOv8 traffic detection models..."
+            ):
+
+                try:
+
+                    detector = load_detector()
+
+                except Exception as e:
+
+                    st.error(
+                        f"YOLO detector could not be loaded: {e}"
+                    )
+
+                    st.stop()
+
+
+            # ------------------------------------------------
+            # STEP 2: LOAD OCR ONLY NOW
             # ------------------------------------------------
 
             with st.spinner(
@@ -445,6 +512,7 @@ with tab_dash:
             ):
 
                 try:
+
                     ocr = load_ocr()
 
                 except Exception as e:
@@ -457,7 +525,7 @@ with tab_dash:
 
 
             # ------------------------------------------------
-            # STEP 2: COMPUTER VISION
+            # STEP 3: COMPUTER VISION
             # ------------------------------------------------
 
             with st.spinner(
@@ -470,7 +538,7 @@ with tab_dash:
 
 
             # Convert BGR to RGB
-            annotated_img_rgb = cv2.cvtColor(
+            annotated_img_rgb = cv2.cvt(
                 annotated_img,
                 cv2.COLOR_BGR2RGB
             )
@@ -489,7 +557,7 @@ with tab_dash:
 
                 orig_img = cv2.imread(img_path)
 
-                orig_img_rgb = cv2.cvtColor(
+                orig_img_rgb = cv2.cvt(
                     orig_img,
                     cv2.COLOR_BGR2RGB
                 )
@@ -606,7 +674,9 @@ with tab_dash:
                             "**Evidence Snippet (Motorcycle ROI):**"
                         )
 
-                        crop = det.get("motorcycle_crop")
+                        crop = det.get(
+                            "motorcycle_crop"
+                        )
 
                         if crop is not None:
 
