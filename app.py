@@ -4,6 +4,7 @@ import cv2
 import pandas as pd
 from datetime import datetime
 
+# Import project modules
 from database import (
     init_db,
     get_vehicle_owner,
@@ -12,7 +13,6 @@ from database import (
     get_all_vehicles,
     add_vehicle_owner
 )
-
 from detector import TrafficViolationDetector
 from ocr_module import LicensePlateRecognizer
 from nlp_engine import TrafficNLP
@@ -37,99 +37,96 @@ st.set_page_config(
 
 st.markdown("""
 <style>
+    .main {
+        background-color: #0F172A;
+        color: #F8FAFC;
+    }
 
-.main {
-    background-color: #0F172A;
-    color: #F8FAFC;
-}
+    .stApp {
+        background-color: #0F172A;
+    }
 
-.stApp {
-    background-color: #0F172A;
-}
+    .title-banner {
+        background: linear-gradient(135deg, #1E3A8A 0%, #3B82F6 100%);
+        padding: 2rem;
+        border-radius: 12px;
+        box-shadow: 0 4px 20px rgba(59, 130, 246, 0.2);
+        margin-bottom: 2rem;
+        text-align: center;
+    }
 
-.title-banner {
-    background: linear-gradient(135deg, #1E3A8A 0%, #3B82F6 100%);
-    padding: 2rem;
-    border-radius: 12px;
-    box-shadow: 0 4px 20px rgba(59, 130, 246, 0.2);
-    margin-bottom: 2rem;
-    text-align: center;
-}
+    .title-banner h1 {
+        color: #FFFFFF !important;
+        font-family: 'Outfit', 'Inter', sans-serif;
+        font-weight: 800;
+        margin-bottom: 0.5rem;
+    }
 
-.title-banner h1 {
-    color: #FFFFFF !important;
-    font-family: 'Outfit', 'Inter', sans-serif;
-    font-weight: 800;
-    margin-bottom: 0.5rem;
-}
+    .title-banner p {
+        color: #E2E8F0;
+        font-size: 1.1rem;
+        margin: 0;
+    }
 
-.title-banner p {
-    color: #E2E8F0;
-    font-size: 1.1rem;
-    margin: 0;
-}
+    .metric-card {
+        background: rgba(30, 41, 59, 0.7);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        padding: 1.25rem;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        text-align: center;
+    }
 
-.metric-card {
-    background: rgba(30, 41, 59, 0.7);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 12px;
-    padding: 1.25rem;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-    text-align: center;
-}
+    .metric-value {
+        font-size: 2.2rem;
+        font-weight: 700;
+        color: #3B82F6;
+    }
 
-.metric-value {
-    font-size: 2.2rem;
-    font-weight: 700;
-    color: #3B82F6;
-}
+    .metric-label {
+        font-size: 0.9rem;
+        color: #94A3B8;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
 
-.metric-label {
-    font-size: 0.9rem;
-    color: #94A3B8;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-}
+    .violation-alert {
+        background: rgba(239, 68, 68, 0.15);
+        border: 2px solid #EF4444;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-top: 1rem;
+        margin-bottom: 1.5rem;
+    }
 
-.violation-alert {
-    background: rgba(239, 68, 68, 0.15);
-    border: 2px solid #EF4444;
-    border-radius: 12px;
-    padding: 1.5rem;
-    margin-top: 1rem;
-    margin-bottom: 1.5rem;
-}
+    .violation-title {
+        color: #EF4444;
+        font-weight: 700;
+        font-size: 1.3rem;
+        margin-bottom: 0.5rem;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
 
-.violation-title {
-    color: #EF4444;
-    font-weight: 700;
-    font-size: 1.3rem;
-    margin-bottom: 0.5rem;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.success-alert {
-    background: rgba(34, 197, 94, 0.15);
-    border: 2px solid #22C55E;
-    border-radius: 12px;
-    padding: 1.5rem;
-    margin-top: 1rem;
-    margin-bottom: 1.5rem;
-}
-
+    .success-alert {
+        background: rgba(34, 197, 94, 0.15);
+        border: 2px solid #22C55E;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-top: 1rem;
+        margin-bottom: 1.5rem;
+    }
 </style>
 """, unsafe_allow_html=True)
 
 
 # ============================================================
-# DIRECTORIES
+# PROJECT DIRECTORIES
 # ============================================================
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 SAMPLE_DIR = os.path.join(BASE_DIR, "sample_media")
-
 os.makedirs(SAMPLE_DIR, exist_ok=True)
 
 
@@ -137,13 +134,22 @@ os.makedirs(SAMPLE_DIR, exist_ok=True)
 # RESOURCE LOADING
 # ============================================================
 
-@st.cache_resource
-def load_resources():
-    """
-    Loads lightweight resources at application startup.
+# IMPORTANT:
+# The heavy YOLO detector is NOT loaded during initial page load.
+# It is loaded only when the user clicks the detection button.
+#
+# This prevents Streamlit Cloud from getting stuck at:
+# "Running load_resources"
+#
+# EasyOCR is also lazy-loaded only when detection runs.
 
-    Heavy YOLO models are intentionally NOT loaded here.
-    This prevents Streamlit Cloud startup problems.
+
+@st.cache_resource
+def load_basic_resources():
+    """
+    Load lightweight resources required by the dashboard.
+
+    Heavy computer-vision models are intentionally excluded.
     """
     init_db()
 
@@ -156,8 +162,10 @@ def load_resources():
 @st.cache_resource
 def load_detector():
     """
-    Loads the YOLO detector only when the user
-    actually runs the detection pipeline.
+    Lazy-load the complete YOLO traffic detector.
+
+    This is intentionally called only when the user runs
+    the AI Detection Pipeline.
     """
     return TrafficViolationDetector()
 
@@ -165,35 +173,29 @@ def load_detector():
 @st.cache_resource
 def load_ocr():
     """
-    Loads EasyOCR only when required.
+    Lazy-load EasyOCR only when the detection pipeline needs it.
     """
     return LicensePlateRecognizer()
 
 
-# ============================================================
-# LOAD LIGHTWEIGHT RESOURCES
-# ============================================================
-
+# Load only lightweight resources at startup.
 try:
-    nlp, pdf_gen = load_resources()
+
+    nlp, pdf_gen = load_basic_resources()
 
 except Exception as e:
-    st.error(f"Error loading system components: {e}")
+
+    st.error(
+        f"Error loading core system components: {e}"
+    )
+
     st.stop()
 
 
-# ============================================================
-# SESSION STATE
-# ============================================================
+# Detector starts as unavailable.
+# It will be initialized only when detection is requested.
 
-if "detector_loaded" not in st.session_state:
-    st.session_state["detector_loaded"] = False
-
-if "ocr_loaded" not in st.session_state:
-    st.session_state["ocr_loaded"] = False
-
-if "last_nlp_msg" not in st.session_state:
-    st.session_state["last_nlp_msg"] = ""
+detector = None
 
 
 # ============================================================
@@ -220,7 +222,7 @@ ocr_sim_correct = st.sidebar.checkbox(
 
 
 # ============================================================
-# VEHICLE REGISTRATION
+# REGISTER NEW VEHICLE
 # ============================================================
 
 with st.sidebar.expander("📝 Register New Vehicle (Registry)"):
@@ -270,40 +272,28 @@ with st.sidebar.expander("📝 Register New Vehicle (Registry)"):
 
 
 # ============================================================
-# MAIN BANNER
+# MAIN APPLICATION BANNER
 # ============================================================
 
 st.markdown("""
 <div class="title-banner">
-
-    <h1>
-        Traffic Violation Detector & E-Challan Generator
-    </h1>
-
+    <h1>Traffic Violation Detector & E-Challan Generator</h1>
     <p>
         Integrated Computer Vision (YOLOv8 + EasyOCR)
         & NLP (spaCy Parser) System for Traffic Safety Enforcement
     </p>
-
 </div>
 """, unsafe_allow_html=True)
 
 
 # ============================================================
-# DATABASE SUMMARY
+# METRIC SUMMARY
 # ============================================================
 
 v_list = get_all_violations()
 
 total_violations = len(v_list)
-
 reg_vehicles = len(get_all_vehicles())
-
-pending_fines = sum(
-    v.get("fine_amount", 1000)
-    for v in v_list
-)
-
 
 col_m1, col_m2, col_m3, col_m4 = st.columns(4)
 
@@ -313,15 +303,8 @@ with col_m1:
     st.markdown(
         f"""
         <div class="metric-card">
-
-            <div class="metric-value">
-                {total_violations}
-            </div>
-
-            <div class="metric-label">
-                Total Violations Logged
-            </div>
-
+            <div class="metric-value">{total_violations}</div>
+            <div class="metric-label">Total Violations Logged</div>
         </div>
         """,
         unsafe_allow_html=True
@@ -333,15 +316,8 @@ with col_m2:
     st.markdown(
         f"""
         <div class="metric-card">
-
-            <div class="metric-value">
-                {reg_vehicles}
-            </div>
-
-            <div class="metric-label">
-                Registered Vehicles
-            </div>
-
+            <div class="metric-value">{reg_vehicles}</div>
+            <div class="metric-label">Registered Vehicles</div>
         </div>
         """,
         unsafe_allow_html=True
@@ -350,18 +326,13 @@ with col_m2:
 
 with col_m3:
 
+    pending_fines = total_violations * 1000
+
     st.markdown(
         f"""
         <div class="metric-card">
-
-            <div class="metric-value">
-                ₹{pending_fines}
-            </div>
-
-            <div class="metric-label">
-                Fines Generated
-            </div>
-
+            <div class="metric-value">₹{pending_fines}</div>
+            <div class="metric-label">Fines Generated</div>
         </div>
         """,
         unsafe_allow_html=True
@@ -370,26 +341,32 @@ with col_m3:
 
 with col_m4:
 
-    if st.session_state["detector_loaded"]:
-        model_status = "Online (CPU)"
-    else:
-        model_status = "Ready"
+    # Detector is intentionally not loaded during startup.
+    # The service status therefore reflects whether the detector
+    # has already been initialized in this session.
+
+    detector_status = (
+        "Ready"
+        if detector is not None
+        else "Standby"
+    )
+
+    detector_color = (
+        "#22C55E"
+        if detector is not None
+        else "#3B82F6"
+    )
 
     st.markdown(
         f"""
         <div class="metric-card">
-
             <div class="metric-value"
-                 style="color: #22C55E;">
-
-                {model_status}
-
+                 style="color: {detector_color};">
+                {detector_status}
             </div>
-
             <div class="metric-label">
                 YOLOv8 Service Status
             </div>
-
         </div>
         """,
         unsafe_allow_html=True
@@ -403,18 +380,16 @@ st.write("")
 # TABS
 # ============================================================
 
-tab_dash, tab_nlp, tab_db, tab_edu = st.tabs(
-    [
-        "🚥 Traffic Violation Detection",
-        "📝 NLP & Linguistic Analysis",
-        "🗄️ SQLite Database Registry",
-        "🎓 BSc Project Presentation Help"
-    ]
-)
+tab_dash, tab_nlp, tab_db, tab_edu = st.tabs([
+    "🚥 Traffic Violation Detection",
+    "📝 NLP & Linguistic Analysis",
+    "🗄️ SQLite Database Registry",
+    "🎓 BSc Project Presentation Help"
+])
 
 
 # ============================================================
-# TAB 1 — TRAFFIC VIOLATION DETECTION
+# TAB 1: DETECTION DASHBOARD
 # ============================================================
 
 with tab_dash:
@@ -433,7 +408,6 @@ with tab_dash:
             ],
             horizontal=True
         )
-
 
     img_path = None
 
@@ -483,10 +457,7 @@ with tab_dash:
             )
 
             with open(temp_path, "wb") as f:
-
-                f.write(
-                    uploaded_file.getbuffer()
-                )
+                f.write(uploaded_file.getbuffer())
 
             img_path = temp_path
 
@@ -498,7 +469,7 @@ with tab_dash:
 
 
     # --------------------------------------------------------
-    # DETECTION BUTTON
+    # RUN DETECTION
     # --------------------------------------------------------
 
     if img_path:
@@ -509,88 +480,64 @@ with tab_dash:
             use_container_width=True
         )
 
-
         if run_btn:
 
             # ------------------------------------------------
-            # LOAD DETECTOR
+            # STEP 1: LOAD YOLO DETECTOR ONLY NOW
             # ------------------------------------------------
 
             with st.spinner(
-                "Loading YOLOv8 detection model..."
+                "Loading YOLOv8 traffic detection models..."
             ):
 
                 try:
 
                     detector = load_detector()
 
-                    st.session_state[
-                        "detector_loaded"
-                    ] = True
-
                 except Exception as e:
 
                     st.error(
-                        f"Unable to load YOLO detector: {e}"
+                        f"YOLO detector could not be loaded: {e}"
                     )
 
                     st.stop()
 
 
             # ------------------------------------------------
-            # LOAD OCR
+            # STEP 2: LOAD OCR ONLY NOW
             # ------------------------------------------------
 
             with st.spinner(
-                "Loading EasyOCR module..."
+                "Loading EasyOCR model for license-plate recognition..."
             ):
 
                 try:
 
                     ocr = load_ocr()
 
-                    st.session_state[
-                        "ocr_loaded"
-                    ] = True
-
                 except Exception as e:
 
                     st.error(
-                        f"Unable to load OCR module: {e}"
+                        f"EasyOCR could not be loaded: {e}"
                     )
 
                     st.stop()
 
 
             # ------------------------------------------------
-            # RUN DETECTION
+            # STEP 3: COMPUTER VISION
             # ------------------------------------------------
 
             with st.spinner(
                 "Processing Computer Vision Pipeline..."
             ):
 
-                try:
-
-                    annotated_img, detections = (
-                        detector.detect_violations(
-                            img_path
-                        )
-                    )
-
-                except Exception as e:
-
-                    st.error(
-                        f"Detection pipeline failed: {e}"
-                    )
-
-                    st.stop()
+                annotated_img, detections = detector.detect_violations(
+                    img_path
+                )
 
 
-            # ------------------------------------------------
-            # CONVERT ANNOTATED IMAGE
-            # ------------------------------------------------
-
+            # Convert BGR to RGB
             annotated_img_rgb = cv2.cvtColor(
                 annotated_img,
                 cv2.COLOR_BGR2RGB
@@ -598,34 +545,28 @@ with tab_dash:
 
 
             # ------------------------------------------------
-            # DISPLAY IMAGES
+            # SHOW RESULTS
             # ------------------------------------------------
 
-            st.write(
-                "### AI Bounding Box Annotations"
-            )
+            st.write("### AI Bounding Box Annotations")
 
             col_res1, col_res2 = st.columns(2)
 
 
             with col_res1:
 
-                orig_img = cv2.imread(
-                    img_path
+                orig_img = cv2.imread(img_path)
+
+                orig_img_rgb = cv2.cvtColor(
+                    orig_img,
+                    cv2.COLOR_BGR2RGB
                 )
 
-                if orig_img is not None:
-
-                    orig_img_rgb = cv2.cvtColor(
-                        orig_img,
-                        cv2.COLOR_BGR2RGB
-                    )
-
-                    st.image(
-                        orig_img_rgb,
-                        caption="Input Frame / Raw Image",
-                        use_container_width=True
-                    )
+                st.image(
+                    orig_img_rgb,
+                    caption="Input Frame / Raw Image",
+                    use_container_width=True
+                )
 
 
             with col_res2:
@@ -640,119 +581,107 @@ with tab_dash:
                 )
 
 
-            # =================================================
+            # ------------------------------------------------
             # NO VIOLATIONS
-            # =================================================
+            # ------------------------------------------------
 
             if not detections:
 
                 st.markdown(
                     """
                     <div class="success-alert">
-
                         <div class="violation-title"
                              style="color: #22C55E;">
-
                             ✔️ Safety Compliance Verified
-
                         </div>
 
-                        No traffic violations detected
-                        in this frame.
-
+                        No traffic violations detected in this frame.
                     </div>
                     """,
                     unsafe_allow_html=True
                 )
 
 
-            # =================================================
+            # ------------------------------------------------
             # VIOLATIONS FOUND
-            # =================================================
+            # ------------------------------------------------
 
             else:
 
                 for idx, det in enumerate(detections):
 
-                    violation_type = det.get(
+                    violation_type_raw = det.get(
                         "violation_type",
-                        "Traffic Violation"
+                        "Riding without Helmet"
+                    )
+
+                    violation_type_lower = (
+                        violation_type_raw.lower()
                     )
 
 
-                    # -----------------------------------------
-                    # VIOLATION HEADER
-                    # -----------------------------------------
+                    # Determine violation label
+                    if "triple" in violation_type_lower:
 
-                    if violation_type == "Triple Riding":
+                        display_violation = "Triple Riding"
 
-                        title = (
-                            "🚨 Traffic Violation Alert: "
-                            "Triple Riding"
+                        violation_description = (
+                            "Three riders detected on the same motorcycle."
                         )
 
-                        description = (
-                            "Three riders detected on "
-                            "the same motorcycle."
-                        )
+                        nlp_violation = "triple riding"
 
                     else:
 
-                        title = (
-                            "🚨 Traffic Violation Alert: "
-                            "Riding Without Helmet"
+                        display_violation = "Riding Without Helmet"
+
+                        violation_description = (
+                            "Motorcycle rider detected without a helmet."
                         )
 
-                        description = (
-                            "Safety violation detected. "
-                            "Motorcycle rider is operating "
-                            "the vehicle without a safety helmet."
-                        )
+                        nlp_violation = "riding without a helmet"
 
+
+                    # ------------------------------------------------
+                    # VIOLATION ALERT
+                    # ------------------------------------------------
 
                     st.markdown(
                         f"""
                         <div class="violation-alert">
-
                             <div class="violation-title">
-
-                                {title}
-
+                                🚨 Traffic Violation Alert:
+                                {display_violation}
                             </div>
 
-                            {description}
-
+                            {violation_description}
                         </div>
                         """,
                         unsafe_allow_html=True
                     )
 
 
-                    col_det1, col_det2 = st.columns(
-                        [1, 2]
-                    )
+                    col_det1, col_det2 = st.columns([1, 2])
 
 
-                    # -----------------------------------------
-                    # MOTORCYCLE CROP
-                    # -----------------------------------------
+                    # ------------------------------------------------
+                    # MOTORCYCLE EVIDENCE
+                    # ------------------------------------------------
 
                     with col_det1:
 
                         st.write(
-                            "**Evidence Snippet "
-                            "(Motorcycle ROI):**"
+                            "**Evidence Snippet (Motorcycle ROI):**"
                         )
 
-                        motorcycle_crop = det.get(
+                        crop = det.get(
                             "motorcycle_crop"
                         )
 
-
-                        if motorcycle_crop is not None:
+                        if crop is not None:
 
                             crop_rgb = cv2.cvtColor(
-                                motorcycle_crop,
+                                crop,
                                 cv2.COLOR_BGR2RGB
                             )
 
@@ -762,189 +691,146 @@ with tab_dash:
                                 caption="Cropped Vehicle ROI"
                             )
 
+                        else:
 
-                    # -----------------------------------------
+                            st.warning(
+                                "Motorcycle crop not available."
+                            )
+
+
+                    # ------------------------------------------------
                     # OCR + DATABASE
-                    # -----------------------------------------
+                    # ------------------------------------------------
 
                     with col_det2:
 
                         st.write(
-                            "🔍 **License Plate Extraction "
-                            "(EasyOCR):**"
+                            "🔍 **License Plate Extraction (EasyOCR):**"
                         )
 
 
-                        if motorcycle_crop is not None:
-
-                            try:
-
-                                raw_plate, confidence = (
-                                    ocr.extract_license_plate(
-                                        motorcycle_crop
-                                    )
-                                )
-
-                            except Exception:
-
-                                raw_plate = ""
-                                confidence = 0.0
+                        raw_plate, confidence = (
+                            ocr.extract_license_plate(
+                                det["motorcycle_crop"]
+                            )
+                        )
 
 
-                            all_reg_plates = [
-                                v["vehicle_number"]
-                                for v in get_all_vehicles()
-                            ]
+                        # Registered plates
+                        all_reg_plates = [
+                            v["vehicle_number"]
+                            for v in get_all_vehicles()
+                        ]
 
 
-                            if ocr_sim_correct:
+                        # Fuzzy matching
+                        if ocr_sim_correct:
 
-                                try:
-
-                                    matched_plate, match_conf = (
-                                        ocr.fuzzy_match_plate(
-                                            raw_plate,
-                                            all_reg_plates
-                                        )
-                                    )
-
-                                except Exception:
-
-                                    matched_plate = raw_plate
-                                    match_conf = 1.0
-
-                            else:
-
-                                matched_plate = raw_plate
-                                match_conf = 1.0
-
-
-                            if matched_plate:
-
-                                st.success(
-                                    f"Number Plate Recognized: "
-                                    f"**{matched_plate}** "
-                                    f"(OCR Raw: `{raw_plate}`, "
-                                    f"Conf: {confidence:.2f})"
-                                )
-
-                            else:
-
-                                matched_plate = (
-                                    "MH12AB1234"
-                                )
-
-                                st.warning(
-                                    "OCR reading low. "
-                                    "Fallback assigned for "
-                                    f"presentation demo: "
-                                    f"**{matched_plate}**"
-                                )
-
-
-                            # ---------------------------------
-                            # DATABASE LOOKUP
-                            # ---------------------------------
-
-                            owner_info = (
-                                get_vehicle_owner(
-                                    matched_plate
+                            matched_plate, match_conf = (
+                                ocr.fuzzy_match_plate(
+                                    raw_plate,
+                                    all_reg_plates
                                 )
                             )
 
+                        else:
 
-                            if owner_info:
+                            matched_plate = raw_plate
+                            match_conf = 1.0
 
-                                st.markdown(
-                                    "🗄️ **SQLite Owner "
-                                    "Record Found:**"
+
+                        # ------------------------------------------------
+                        # OCR SUCCESS
+                        # ------------------------------------------------
+
+                        if matched_plate:
+
+                            st.success(
+                                f"Number Plate Recognized: "
+                                f"**{matched_plate}** "
+                                f"(OCR Raw: `{raw_plate}`, "
+                                f"Conf: {confidence:.2f})"
+                            )
+
+
+                        # ------------------------------------------------
+                        # OCR FALLBACK
+                        # ------------------------------------------------
+
+                        else:
+
+                            matched_plate = "MH12AB1234"
+
+                            st.warning(
+                                "OCR reading low. "
+                                "Fallback assigned for presentation demo: "
+                                f"**{matched_plate}**"
+                            )
+
+
+                        # ------------------------------------------------
+                        # DATABASE LOOKUP
+                        # ------------------------------------------------
+
+                        owner_info = get_vehicle_owner(
+                            matched_plate
+                        )
+
+
+                        if owner_info:
+
+                            st.markdown(
+                                "🗄️ **SQLite Owner Record Found:**"
+                            )
+
+                            st.json(owner_info)
+
+
+                        else:
+
+                            owner_info = {
+                                "vehicle_number": matched_plate,
+                                "owner_name": "Rahul Sharma",
+                                "phone": "+91 98765 43210",
+                                "address": (
+                                    "Flat 402, Sunshine Apartments, "
+                                    "Pune, Maharashtra - 411001"
                                 )
+                            }
 
-                                st.json(owner_info)
+                            st.warning(
+                                "License plate not in registry database. "
+                                "Simulating default registration details."
+                            )
 
-                            else:
-
-                                owner_info = {
-
-                                    "vehicle_number":
-                                        matched_plate,
-
-                                    "owner_name":
-                                        "Rahul Sharma",
-
-                                    "phone":
-                                        "+91 98765 43210",
-
-                                    "address":
-                                        "Flat 402, Sunshine "
-                                        "Apartments, Pune, "
-                                        "Maharashtra - 411001"
-                                }
-
-
-                                st.warning(
-                                    "License plate not in "
-                                    "registry database. "
-                                    "Using default registration "
-                                    "details for demonstration."
-                                )
-
-                                st.json(owner_info)
+                            st.json(owner_info)
 
 
                     st.write("---")
 
 
-                    # =================================================
+                    # ------------------------------------------------
                     # NLP MESSAGE
-                    # =================================================
+                    # ------------------------------------------------
 
                     st.write(
-                        "⚙️ **NLP Notice Message Generation "
-                        "(spaCy):**"
+                        "⚙️ **NLP Notice Message Generation (spaCy):**"
                     )
 
 
-                    fine_amt = int(
-                        det.get("fine", 1000)
-                    )
-
+                    fine_amt = 1000
 
                     time_str = datetime.now().strftime(
                         "%Y-%m-%d at %I:%M %p"
                     )
 
 
-                    if violation_type == "Triple Riding":
-
-                        nlp_violation_type = (
-                            "triple riding"
-                        )
-
-                    else:
-
-                        nlp_violation_type = (
-                            "riding without a helmet"
-                        )
-
-
-                    nlp_msg = (
-                        nlp.generate_violation_message(
-                            owner_name=owner_info[
-                                "owner_name"
-                            ],
-
-                            vehicle_number=owner_info[
-                                "vehicle_number"
-                            ],
-
-                            violation_type=
-                                nlp_violation_type,
-
-                            fine_amount=fine_amt,
-
-                            date_time_str=time_str
-                        )
+                    nlp_msg = nlp.generate_violation_message(
+                        owner_name=owner_info["owner_name"],
+                        vehicle_number=owner_info["vehicle_number"],
+                        violation_type=nlp_violation,
+                        fine_amount=fine_amt,
+                        date_time_str=time_str
                     )
 
 
@@ -953,18 +839,16 @@ with tab_dash:
                     )
 
 
-                    st.session_state[
-                        "last_nlp_msg"
-                    ] = nlp_msg
+                    # Save NLP message
+                    st.session_state["last_nlp_msg"] = nlp_msg
 
 
-                    # =================================================
-                    # EVIDENCE + PDF + DATABASE
-                    # =================================================
+                    # ------------------------------------------------
+                    # SAVE DATABASE + PDF
+                    # ------------------------------------------------
 
                     with st.spinner(
-                        "Generating E-Challan PDF "
-                        "& saving violation record..."
+                        "Generating E-Challan PDF & saving violation record..."
                     ):
 
                         ev_path = det.get(
@@ -972,141 +856,79 @@ with tab_dash:
                         )
 
 
-                        if not ev_path:
-
-                            st.error(
-                                "Evidence image path was "
-                                "not returned by detector."
-                            )
-
-                            continue
-
-
-                        # ---------------------------------------------
-                        # PDF
-                        # ---------------------------------------------
-
-                        pdf_path = (
-                            pdf_gen.generate_challan(
-
-                                violation_id=
-                                    total_violations + idx + 1,
-
-                                vehicle_details=
-                                    owner_info,
-
-                                violation_type=
-                                    violation_type,
-
-                                fine_amount=
-                                    fine_amt,
-
-                                nlp_message=
-                                    nlp_msg,
-
-                                evidence_image_path=
-                                    ev_path
-                            )
+                        # Generate PDF
+                        pdf_path = pdf_gen.generate_challan(
+                            violation_id=total_violations + idx + 1,
+                            vehicle_details=owner_info,
+                            violation_type=display_violation,
+                            fine_amount=fine_amt,
+                            nlp_message=nlp_msg,
+                            evidence_image_path=ev_path
                         )
 
 
-                        # ---------------------------------------------
-                        # SQLITE
-                        # ---------------------------------------------
-
+                        # Log violation
                         db_id = log_violation(
+                            vehicle_number=owner_info[
+                                "vehicle_number"
+                            ],
 
-                            vehicle_number=
-                                owner_info[
-                                    "vehicle_number"
-                                ],
+                            owner_name=owner_info[
+                                "owner_name"
+                            ],
 
-                            owner_name=
-                                owner_info[
-                                    "owner_name"
-                                ],
+                            phone=owner_info[
+                                "phone"
+                            ],
 
-                            phone=
-                                owner_info[
-                                    "phone"
-                                ],
+                            address=owner_info[
+                                "address"
+                            ],
 
-                            address=
-                                owner_info[
-                                    "address"
-                                ],
+                            violation_type=display_violation,
 
-                            violation_type=
-                                violation_type,
+                            fine_amount=fine_amt,
 
-                            fine_amount=
-                                fine_amt,
+                            nlp_message=nlp_msg,
 
-                            nlp_message=
-                                nlp_msg,
+                            evidence_image_path=ev_path,
 
-                            evidence_image_path=
-                                ev_path,
-
-                            challan_pdf_path=
-                                pdf_path
+                            challan_pdf_path=pdf_path
                         )
 
 
                         st.write(
-                            f"✔️ Challan successfully "
-                            f"logged under ID: "
-                            f"**#{db_id}**"
+                            f"✔️ Challan successfully logged under "
+                            f"ID: **#{db_id}**"
                         )
 
 
-                        # ---------------------------------------------
+                        # ------------------------------------------------
                         # PDF DOWNLOAD
-                        # ---------------------------------------------
+                        # ------------------------------------------------
 
-                        try:
+                        with open(
+                            pdf_path,
+                            "rb"
+                        ) as f:
 
-                            with open(
-                                pdf_path,
-                                "rb"
-                            ) as f:
-
-                                pdf_bytes = f.read()
+                            pdf_bytes = f.read()
 
 
-                            st.download_button(
-
-                                label=
-                                    "📥 Download PDF E-Challan",
-
-                                data=
-                                    pdf_bytes,
-
-                                file_name=
-                                    os.path.basename(
-                                        pdf_path
-                                    ),
-
-                                mime=
-                                    "application/pdf",
-
-                                type=
-                                    "primary",
-
-                                key=
-                                    f"main_pdf_{db_id}"
-                            )
-
-                        except Exception as e:
-
-                            st.error(
-                                f"Unable to prepare PDF "
-                                f"download: {e}"
-                            )
+                        st.download_button(
+                            label="📥 Download PDF E-Challan",
+                            data=pdf_bytes,
+                            file_name=os.path.basename(
+                                pdf_path
+                            ),
+                            mime="application/pdf",
+                            type="primary",
+                            key=f"main_pdf_{db_id}"
+                        )
 
 
 # ============================================================
-# TAB 2 — NLP
+# TAB 2: NLP LINGUISTIC ANALYSIS
 # ============================================================
 
 with tab_nlp:
@@ -1116,17 +938,15 @@ with tab_nlp:
     )
 
     st.write(
-        "This section demonstrates the core NLP "
-        "linguistics capabilities, fulfilling the "
-        "project requirements."
+        "This section demonstrates the core NLP linguistics "
+        "capabilities, fulfilling the project requirements."
     )
 
 
     default_msg = (
-        "Dear Rahul Sharma, your vehicle "
-        "MH12AB1234 was detected violating "
-        "traffic rules due to riding without "
-        "a helmet. A fine of ₹1000 has been generated."
+        "Dear Rahul Sharma, your vehicle MH12AB1234 "
+        "was detected violating traffic rules due to "
+        "riding without a helmet. A fine of ₹1000 has been generated."
     )
 
 
@@ -1162,14 +982,17 @@ with tab_nlp:
             )
 
 
+            # ------------------------------------------------
+            # NER
+            # ------------------------------------------------
+
             st.write(
                 "### 🔍 Named Entity Recognition (NER)"
             )
 
             st.write(
-                "NER detects names, license numbers, "
-                "date, currency, and other standard "
-                "elements in the raw text."
+                "NER detects names, license numbers, date, "
+                "currency, and other standard elements in the raw text."
             )
 
 
@@ -1188,16 +1011,17 @@ with tab_nlp:
                 st.table(ent_df)
 
 
+            # ------------------------------------------------
+            # TOKENIZATION + POS
+            # ------------------------------------------------
+
             st.write(
-                "### 🏷️ Tokenization & "
-                "Parts-of-Speech (POS) Tagging"
+                "### 🏷️ Tokenization & Parts-of-Speech (POS) Tagging"
             )
 
-
             st.write(
-                "This table shows how NLP tokenizes "
-                "the document and tags nouns, verbs, "
-                "adjectives, etc."
+                "This table shows how NLP tokenizes the document "
+                "and tags nouns, verbs, adjectives, etc."
             )
 
 
@@ -1220,6 +1044,10 @@ with tab_nlp:
             )
 
 
+            # ------------------------------------------------
+            # EDUCATIONAL SUMMARY
+            # ------------------------------------------------
+
             st.write(
                 "### 🎯 Educational Summary: "
                 "Role of NLP in E-Challan Systems"
@@ -1228,33 +1056,29 @@ with tab_nlp:
 
             st.markdown(
                 """
-In a traffic automation system, raw database values
-such as owner name, vehicle number and fine amount
-are isolated variables.
+                In a traffic automation system, raw database
+                values such as owner name, vehicle number and
+                fine amount are isolated variables.
 
-**NLP is used to:**
+                **NLP is used to:**
 
-1. **Generate Natural, Context-Aware Messages**:
-   NLP converts structured database information into
-   human-readable legal notification text.
+                1. **Generate Natural, Context-Aware Messages**:
+                   NLP converts structured traffic data into
+                   human-readable legal notification text.
 
-2. **Entity Validation**:
-   spaCy scans the generated message and identifies
-   important linguistic entities.
+                2. **Entity Validation**:
+                   NER can scan the generated message and identify
+                   important entities such as the owner and vehicle.
 
-3. **Tokenization and POS Tagging**:
-   The system demonstrates how the notice is divided
-   into tokens and grammatical categories.
-
-4. **Extensibility**:
-   The NLP pipeline can later be extended to support
-   multilingual traffic notices.
+                3. **Language Adaptation**:
+                   POS tagging and linguistic analysis provide a
+                   foundation for future multilingual traffic notices.
                 """
             )
 
 
 # ============================================================
-# TAB 3 — SQLITE DATABASE
+# TAB 3: SQLITE DATABASE REGISTRY
 # ============================================================
 
 with tab_db:
@@ -1280,7 +1104,7 @@ with tab_db:
 
         st.write(
             "Registered vehicle database "
-            "(matches license plates to owner profile details):"
+            "(matches license plates to owner profiles):"
         )
 
 
@@ -1312,8 +1136,8 @@ with tab_db:
     with db_tab2:
 
         st.write(
-            "History log of all detected traffic "
-            "violations and generated e-challans:"
+            "History log of all detected traffic violations "
+            "and generated e-challans:"
         )
 
 
@@ -1374,28 +1198,23 @@ with tab_db:
                         )
 
                         st.write(
-                            f"👤 **Owner:** "
-                            f"{v['owner_name']}"
+                            f"👤 **Owner:** {v['owner_name']}"
                         )
 
                         st.write(
-                            f"🚗 **Vehicle:** "
-                            f"{v['vehicle_number']}"
+                            f"🚗 **Vehicle:** {v['vehicle_number']}"
                         )
 
                         st.write(
-                            f"📅 **Time:** "
-                            f"{v['timestamp']}"
+                            f"📅 **Time:** {v['timestamp']}"
                         )
 
                         st.write(
-                            f"⚠️ **Violation:** "
-                            f"{v['violation_type']}"
+                            f"⚠️ **Violation:** {v['violation_type']}"
                         )
 
                         st.write(
-                            f"💰 **Fine Amount:** "
-                            f"₹{v['fine_amount']}"
+                            f"💰 **Fine Amount:** ₹{v['fine_amount']}"
                         )
 
                         st.write(
@@ -1417,24 +1236,20 @@ with tab_db:
                             ) as f:
 
                                 st.download_button(
-
-                                    label=
+                                    label=(
                                         "📥 Download PDF "
-                                        "for this Challan",
+                                        "for this Challan"
+                                    ),
 
-                                    data=
-                                        f.read(),
+                                    data=f.read(),
 
-                                    file_name=
-                                        os.path.basename(
-                                            v["challan_pdf_path"]
-                                        ),
+                                    file_name=os.path.basename(
+                                        v["challan_pdf_path"]
+                                    ),
 
-                                    mime=
-                                        "application/pdf",
+                                    mime="application/pdf",
 
-                                    key=
-                                        f"dl_btn_{v['id']}"
+                                    key=f"dl_btn_{v['id']}"
                                 )
 
 
@@ -1471,7 +1286,7 @@ with tab_db:
 
 
 # ============================================================
-# TAB 4 — PRESENTATION
+# TAB 4: PRESENTATION HELP
 # ============================================================
 
 with tab_edu:
@@ -1480,54 +1295,59 @@ with tab_edu:
         "4. TY BSc AI Presentation Helper & Guide"
     )
 
-
     st.write(
-        "Use this guide to prepare for your presentation "
-        "and viva-voce."
+        "Use this guide to prepare for your presentation."
     )
 
 
     st.markdown(
         """
-### 📊 Suggested Slide Deck Structure
+        ### 📊 Suggested Slide Deck Structure (10 Slides)
 
-1. **Title Slide**
-   Project Name, Your Name, Seat Number, Guide Name.
+        1. **Title Slide**:
+           Project Name, Your Name, Seat Number, Guide Name.
 
-2. **Introduction**
-   Road traffic safety and automated violation detection.
+        2. **Introduction**:
+           Explain the problem of road traffic safety,
+           helmet violations and automated challan generation.
 
-3. **Proposed System Architecture**
-   Image Input → YOLOv8 Detection → EasyOCR →
-   SQLite → spaCy NLP → PDF Challan.
+        3. **Proposed System Architecture**:
+           Image Input → YOLOv8 Detection → EasyOCR →
+           SQLite Owner Match → spaCy NLP → PDF Challan.
 
-4. **Computer Vision**
-   YOLOv8 detects people and motorcycles.
-   Helmet detection is used to identify helmet violations.
-   Rider association uses bounding-box relationships.
+        4. **Computer Vision (YOLOv8)**:
+           - Object detection
+           - Person and motorcycle detection
+           - Helmet / No Helmet detection
+           - Rider-to-motorcycle association
+           - Triple Riding detection
 
-5. **License Plate Recognition**
-   EasyOCR extracts vehicle registration numbers.
-   Fuzzy matching helps handle minor OCR errors.
+        5. **License Plate Recognition (EasyOCR)**:
+           - Motorcycle ROI extraction
+           - Image preprocessing
+           - OCR extraction
+           - Regex filtering
+           - Fuzzy matching against registered plates
 
-6. **Natural Language Processing**
-   spaCy provides tokenization, POS tagging and NER.
-   NLP generates human-readable violation notices.
+        6. **Natural Language Processing (NLP)**:
+           - Template-based notice generation
+           - Tokenization
+           - POS tagging
+           - Named Entity Recognition
+           - spaCy linguistic analysis
 
-7. **System Implementation**
-   Python, YOLOv8, EasyOCR, SQLite, spaCy,
-   ReportLab and Streamlit.
+        7. **System Implementation**:
+           SQLite database, Python modules and ReportLab PDF generation.
 
-8. **Demonstration & UI**
-   Traffic image upload, AI detection,
-   vehicle registry, NLP and e-challan generation.
+        8. **Demonstration & UI**:
+           Streamlit dashboard, traffic image upload,
+           detection results, database and challan generation.
 
-9. **Future Enhancements**
-   Automated notifications, improved OCR,
-   stronger rider association and additional
-   traffic-safety rules.
+        9. **Future Enhancements**:
+           Improved detection accuracy, additional traffic
+           violations and automated notification systems.
 
-10. **Conclusion & References**
-    Summary of the completed system.
+        10. **Conclusion & References**:
+            Summary of the implemented system and references.
         """
     )
